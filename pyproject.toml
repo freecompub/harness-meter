@@ -1,0 +1,17 @@
+[project]
+name = "harness-meter"
+version = "0.1.0"
+description = "Measure and compare token consumption across AI coding agent harnesses"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.12"
+dependencies = ["mitmproxy>=10.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.urls]
+Homepage = "https://github.com/freecompub/harness-meter"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

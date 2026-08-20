@@ -1,0 +1,9 @@
+measurements/
+results.csv
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.mitmproxy/
+dist/
+*.egg-info/
