@@ -58,6 +58,35 @@ def test_bom_prefixed_settings_are_readable(tmp_path):
 
 
 # --------------------------------------------------------------------------
+# VS Code settings rendering
+# --------------------------------------------------------------------------
+
+
+def test_render_vscode_settings_has_exactly_the_owned_keys():
+    rendered = config.render_vscode_settings(8081)
+    assert rendered == {
+        "http.proxy": "http://127.0.0.1:8081",
+        "http.proxyStrictSSL": False,
+    }
+    assert set(rendered) == set(config.VSCODE_KEYS)
+
+
+def test_vscode_settings_json_is_valid_json_with_the_port():
+    parsed = json.loads(config.vscode_settings_json(9001))
+    assert parsed["http.proxy"] == "http://127.0.0.1:9001"
+    assert parsed["http.proxyStrictSSL"] is False
+
+
+def test_apply_writes_the_rendered_settings(fake_vscode, tmp_path):
+    """apply and the standalone generator must agree — one source of truth."""
+    settings, _ = fake_vscode
+    config.apply(root=tmp_path, quiet=True)
+    parsed = json.loads(settings.read_text(encoding="utf-8"))
+    for key, value in config.render_vscode_settings(8081).items():
+        assert parsed[key] == value
+
+
+# --------------------------------------------------------------------------
 # Apply / revert round trip
 # --------------------------------------------------------------------------
 

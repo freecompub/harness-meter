@@ -102,12 +102,30 @@ src/harness_meter/
   analyze.py    # aggregation into a comparable report; main() entry point
 token_meter.py  # the mitmproxy addon, loaded by path: mitmdump -s token_meter.py
 analyze.py      # thin wrapper for `python analyze.py`
-scripts/        # install.py, proxy_start.py, proxy_stop.py
+scripts/        # install.py, uninstall.py, proxy_start.py, proxy_stop.py,
+                # vscode_settings.py
 ```
 
 The two root files are operational entry points run from a checkout, not part of
 the installed package. `harness-meter-analyze` (a console script) and
 `python -m harness_meter.analyze` are equivalent to `python analyze.py`.
+
+## Uninstall
+
+To remove the local environment, run the uninstaller. It **restores any
+still-proxied clients first** — so it never leaves VS Code or a CLI pointed at a
+dead port — then deletes the venv and the tool's scratch state
+(`.harness-meter/`):
+
+```bash
+python3 scripts/uninstall.py            # revert clients, remove .venv + state
+python3 scripts/uninstall.py --purge    # also delete measurements/ and results.csv
+python3 scripts/uninstall.py --yes      # skip the confirmation prompt
+```
+
+Your measurement output (`measurements/`, `results.csv`) is treated as data and
+kept unless you pass `--purge`. Reverting the client configuration needs only
+the standard library, so the uninstaller works even after the venv is gone.
 
 ## Next steps
 

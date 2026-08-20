@@ -167,6 +167,23 @@ def read_settings(path: pathlib.Path) -> dict[str, Any]:
         return json.loads(strip_jsonc(raw))
 
 
+def render_vscode_settings(port: int) -> dict[str, Any]:
+    """The exact keys harness-meter owns in VS Code settings, as a dict.
+
+    Single source of truth: `apply` merges this into the real settings.json, and
+    the standalone generator renders it for a manual merge.
+    """
+    return {
+        "http.proxy": f"http://127.0.0.1:{port}",
+        "http.proxyStrictSSL": False,
+    }
+
+
+def vscode_settings_json(port: int) -> str:
+    """The same keys rendered as a JSON document, ready to write or paste."""
+    return json.dumps(render_vscode_settings(port), indent=2, ensure_ascii=False) + "\n"
+
+
 # --------------------------------------------------------------------------
 # Environment snippets
 # --------------------------------------------------------------------------
@@ -274,8 +291,7 @@ def apply(
             backup.unlink(missing_ok=True)
             continue
 
-        settings["http.proxy"] = f"http://127.0.0.1:{port}"
-        settings["http.proxyStrictSSL"] = False
+        settings.update(render_vscode_settings(port))
         settings_path.write_text(
             json.dumps(settings, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
         )

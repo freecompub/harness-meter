@@ -57,6 +57,21 @@ owns exactly two keys and leaves everything else untouched:
 }
 ```
 
+If you would rather add these keys yourself — a fresh VS Code with no
+`settings.json` yet, or a manual merge — generate the fragment instead of
+patching in place:
+
+```bash
+python scripts/vscode_settings.py                    # print the JSON to stdout
+python scripts/vscode_settings.py --port 9001        # non-default port
+python scripts/vscode_settings.py --output frag.json # write a standalone file
+```
+
+The JSON goes to stdout (so `> frag.json` stays clean); the candidate
+`settings.json` locations are printed to stderr as guidance. This only renders
+the keys — it does not touch your editor — so restart VS Code after you merge
+them yourself.
+
 Before editing, a **byte-exact** backup is copied to `.harness-meter/`.
 Restoration copies that backup back verbatim — it never re-serializes your
 settings — so comments and trailing commas survive intact. Real

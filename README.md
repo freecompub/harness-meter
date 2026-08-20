@@ -155,6 +155,24 @@ python scripts/proxy_stop.py       # restore
 
 `MEASURE_AUTOCONFIG=0` disables the automatic hooks entirely.
 
+To generate the VS Code proxy keys without patching your `settings.json` — a
+fresh editor with no settings yet, or a manual merge — render the fragment:
+
+```bash
+python scripts/vscode_settings.py             # print the JSON keys to stdout
+python scripts/vscode_settings.py --output frag.json
+```
+
+To remove the local environment (reverting any still-proxied clients first, then
+deleting the venv and scratch state):
+
+```bash
+python3 scripts/uninstall.py       # add --purge to also drop measurements/ + results.csv
+```
+
+See [docs/INSTALL.md](docs/INSTALL.md) and
+[docs/CONFIGURATION.md](docs/CONFIGURATION.md) for the details.
+
 ### What gets touched, and what does not
 
 Only the three target clients are configured. Deliberately untouched:
