@@ -49,7 +49,7 @@ def main() -> int:
         values = [int(p) for p in args.ports.split(",")]
         if len(values) != 3:
             parser.error("--ports needs exactly three comma-separated ports")
-        ports = dict(zip(config.DEFAULT_PORTS.keys(), values))
+        ports = dict(zip(config.DEFAULT_PORTS.keys(), values, strict=True))
 
     config.apply(ports=ports, root=args.root)
 

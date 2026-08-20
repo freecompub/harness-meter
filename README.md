@@ -1,5 +1,7 @@
 # harness-meter
 
+[![CI](https://github.com/salili/harness-meter/actions/workflows/ci.yml/badge.svg)](https://github.com/salili/harness-meter/actions/workflows/ci.yml)
+
 Measure and compare token consumption across AI coding agent harnesses —
 GitHub Copilot in VS Code, Copilot CLI, and Claude Code — on the same model
 and the same task.
@@ -124,6 +126,8 @@ Record outcomes in `results.csv`, then:
 python analyze.py --dir measurements --results results.csv
 ```
 
+Output shape (**synthetic figures — this project ships no measurements**):
+
 ```
 task    client               n   succ      median       IQR  turns    sys_B
 ---------------------------------------------------------------------------
@@ -131,6 +135,10 @@ T04     claude_code          4   80%      97,141    22,944      7   11,000
 T04     copilot_cli          4   80%     100,628    20,702      8    7,400
 T04     copilot_vscode       5  100%     145,721    67,863      8   15,200
 ```
+
+Note the IQR on the third row: roughly half its median. On that sample the
+three harnesses cannot be ranked, and reporting the medians as a result would
+be wrong. This is the normal state of affairs at n=5 — plan for more.
 
 The reported figure is total billable tokens **per successful session**. Cost
 per attempt rewards a harness that gives up early, so failures are excluded by
@@ -169,6 +177,13 @@ and [`docs/TASKS.md`](docs/TASKS.md) for the task design template.
 No prompt content is persisted by default — only sizes. `MEASURE_KEEP_BODIES=1`
 enables full request capture, and should be treated as a debug-only mode: it
 writes source code in cleartext to `measurements/`.
+
+## Status
+
+Early. The measurement pipeline is tested end to end, but **no real comparison
+has been published with it yet** — every number in this README is synthetic,
+generated to validate the aggregation code. Treat the tool as instrumentation,
+not as a source of findings.
 
 ## License
 

@@ -189,9 +189,9 @@ def _system_bytes(body: dict[str, Any]) -> int:
     if system:
         return prompt_bytes({"system": system})
     messages = body.get("messages") or []
-    if messages and isinstance(messages[0], dict):
-        if messages[0].get("role") == "system":
-            return len(str(messages[0].get("content", "")).encode("utf-8"))
+    first = messages[0] if messages else None
+    if isinstance(first, dict) and first.get("role") == "system":
+        return len(str(first.get("content", "")).encode("utf-8"))
     return 0
 
 

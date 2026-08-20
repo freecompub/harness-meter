@@ -14,7 +14,6 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 import token_meter as tm  # noqa: E402
 
-
 ANTHROPIC_STREAM = """\
 event: message_start
 data: {"type":"message_start","message":{"usage":{"input_tokens":1200,\
