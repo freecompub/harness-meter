@@ -16,34 +16,48 @@ Windows, macOS and Linux run the **same code path**. There are no shell
 scripts to keep in sync across platforms — the proxy configuration is written
 in Python precisely so a fix lands once for all three operating systems.
 
-## Install the package
+## Quick install (recommended)
 
-Clone the repository and install it in editable mode. The `[dev]` extra adds
-pytest so you can verify the checkout:
+Clone the repository and run the installer. It checks your Python version,
+creates a local `.venv` at the repo root, installs the package into it, and
+reports whether the mitmproxy CA is present:
 
 ```bash
 git clone https://github.com/freecompub/harness-meter.git
 cd harness-meter
-pip install -e ".[dev]"
+python3 scripts/install.py --test
 ```
 
-If you only want to run measurements and not the tests, the base install is
-enough:
+| Flag | Effect |
+| --- | --- |
+| _(none)_ | Create `.venv`, install with the `[dev]` extra |
+| `--test` | Also run the test suite after installing |
+| `--no-dev` | Runtime dependencies only, no pytest |
+| `--recreate` | Delete and rebuild the venv from scratch |
+| `--venv PATH` | Put the venv somewhere other than `.venv` |
+
+The installer deliberately works inside a virtualenv, so a system Python marked
+**externally managed** (PEP 668 — the `error: externally-managed-environment`
+you get from a Homebrew Python) is never touched. Run it with any Python 3.12+;
+the venv inherits that interpreter.
+
+Activate the environment afterward:
 
 ```bash
-pip install -e .
+source .venv/bin/activate        # macOS / Linux
+.venv\Scripts\Activate.ps1       # Windows (PowerShell)
 ```
 
-A virtual environment is recommended so mitmproxy's dependency tree does not
-land in your system Python:
+## Manual install
+
+If you prefer to set it up yourself, the installer does nothing you cannot do by
+hand. Always use a virtualenv so mitmproxy's dependency tree does not land in
+your system Python:
 
 ```bash
-python -m venv .venv
-# macOS / Linux
-source .venv/bin/activate
-# Windows (PowerShell)
-.venv\Scripts\Activate.ps1
-pip install -e ".[dev]"
+python3 -m venv .venv
+source .venv/bin/activate         # or .venv\Scripts\Activate.ps1 on Windows
+pip install -e ".[dev]"           # or `pip install -e .` for runtime only
 ```
 
 ## Verify the checkout
@@ -66,16 +80,14 @@ mitmproxy's certificate authority. harness-meter never installs a CA into the
 (`NODE_EXTRA_CA_CERTS` for the Node clients, `http.proxyStrictSSL: false` for
 VS Code). This leaves no durable residue if teardown ever fails.
 
-The CA is created the first time mitmproxy starts. If you have never run
-mitmproxy on this machine, generate it once:
-
-```bash
-mitmdump --version   # or run a full measurement; either creates the CA
-```
+The CA is created the first time mitmproxy **starts its proxy** — that is, your
+first measurement run generates it. `scripts/install.py` reports whether the CA
+already exists but does not create one, because generating it means starting the
+proxy.
 
 The file lands at `~/.mitmproxy/mitmproxy-ca-cert.pem` on every platform. The
 automatic setup and the helper scripts both read it from there; if it is
-missing they print a note telling you to run mitmdump once and retry.
+missing they print a note telling you to run a measurement once and retry.
 
 ## Next steps
 

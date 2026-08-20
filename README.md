@@ -88,13 +88,28 @@ them charges VS Code for a workload the others never ran.
 
 ## Install
 
+One command checks your Python, creates a local `.venv`, installs the package
+into it, and (optionally) runs the tests:
+
 ```bash
+python3 scripts/install.py --test
+```
+
+It never touches a system Python marked "externally managed" (PEP 668, common
+with Homebrew) — everything lands in the venv. Activate it afterward with
+`source .venv/bin/activate` (`.venv\Scripts\Activate.ps1` on Windows).
+
+Or do it by hand:
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 pytest
 ```
 
 Requires Python 3.12+ and mitmproxy 10+. Windows, macOS and Linux are
 supported by the same code path; there are no shell scripts to keep in sync.
+See [docs/INSTALL.md](docs/INSTALL.md) for the full guide.
 
 ## Run
 
