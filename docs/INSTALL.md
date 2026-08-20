@@ -89,6 +89,26 @@ The file lands at `~/.mitmproxy/mitmproxy-ca-cert.pem` on every platform. The
 automatic setup and the helper scripts both read it from there; if it is
 missing they print a note telling you to run a measurement once and retry.
 
+## Project layout
+
+The importable package lives under `src/` — a `src` layout, so the editable
+install exposes exactly the package and nothing else (no accidental imports of
+the repo root or the test directory):
+
+```
+src/harness_meter/
+  parsing.py    # pure token-usage core — no mitmproxy dependency, unit-tested
+  config.py     # cross-platform client configuration (proxy setup/teardown)
+  analyze.py    # aggregation into a comparable report; main() entry point
+token_meter.py  # the mitmproxy addon, loaded by path: mitmdump -s token_meter.py
+analyze.py      # thin wrapper for `python analyze.py`
+scripts/        # install.py, proxy_start.py, proxy_stop.py
+```
+
+The two root files are operational entry points run from a checkout, not part of
+the installed package. `harness-meter-analyze` (a console script) and
+`python -m harness_meter.analyze` are equivalent to `python analyze.py`.
+
 ## Next steps
 
 - [CONFIGURATION.md](CONFIGURATION.md) — what each client needs, every

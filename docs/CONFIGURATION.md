@@ -11,7 +11,7 @@ rule: **point each client at its own port.**
 | 8082 | Copilot CLI (`copilot_cli`) | environment snippet in `.harness-meter/env/` |
 | 8083 | Claude Code (`claude_code`) | environment snippet in `.harness-meter/env/` |
 
-The defaults live in `harness_meter_config.py` (`DEFAULT_PORTS`) and in
+The defaults live in `src/harness_meter/config.py` (`DEFAULT_PORTS`) and in
 `token_meter.py` (`PORT_MAP`). Override them with `--ports` when running the
 helper scripts (see below); the addon itself always uses 8081–8083.
 

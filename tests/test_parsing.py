@@ -7,12 +7,7 @@ cumulative SSE frames, and treating the OpenAI and Anthropic definitions of
 
 from __future__ import annotations
 
-import pathlib
-import sys
-
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
-
-import token_meter as tm  # noqa: E402
+from harness_meter import parsing as tm
 
 ANTHROPIC_STREAM = """\
 event: message_start

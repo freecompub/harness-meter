@@ -1,13 +1,16 @@
-"""
-token_meter.py — Addon mitmproxy unique, trois clients.
+"""token_meter.py — single mitmproxy addon, three clients.
 
-Compare Copilot/VS Code, Copilot CLI et Claude Code sur le même modèle et la
-même tâche. Un seul process, un seul parseur : aucun biais d'instrumentation.
+Compares Copilot/VS Code, Copilot CLI and Claude Code on the same model and the
+same task. One process, one parser: no instrumentation bias.
 
-Discrimination par port d'écoute plutôt que par host, car VS Code et Copilot
-CLI partagent la même destination.
+The parsing core lives in `harness_meter.parsing` (importable without mitmproxy,
+so it is unit-tested in isolation); this file is the thin addon around it —
+traffic attribution, per-request I/O, and the setup/teardown lifecycle.
 
-Lancement (un seul process, trois listeners) :
+Attribution is by listen port, not by host, because VS Code and Copilot CLI
+share the same destination.
+
+Launch (one process, three listeners):
 
     MEASURE_RUN=r01 MEASURE_TASK=T04 mitmdump -s token_meter.py \
       --mode regular@8081 \
@@ -15,16 +18,12 @@ Lancement (un seul process, trois listeners) :
       --mode regular@8083 \
       --set stream_large_bodies=10m
 
-Puis chaque client sur SON port :
+Then each client on ITS port:
     8081 -> VS Code        ("http.proxy": "http://127.0.0.1:8081")
     8082 -> Copilot CLI    (HTTPS_PROXY=http://127.0.0.1:8082)
     8083 -> Claude Code    (HTTPS_PROXY=http://127.0.0.1:8083)
 
-CA pour les clients Node :
-    export NODE_EXTRA_CA_CERTS=$HOME/.mitmproxy/mitmproxy-ca-cert.pem
-VS Code en plus : "http.proxyStrictSSL": false
-
-Sortie : ./measurements/<run>.jsonl
+Output: ./measurements/<run>.jsonl
 """
 
 from __future__ import annotations
@@ -32,22 +31,16 @@ from __future__ import annotations
 import json
 import os
 import pathlib
-import sys
 import time
-from typing import Any
+
+from harness_meter import config, parsing
 
 try:
     from mitmproxy import http
 except ImportError:  # pragma: no cover
-    # The parsing core is deliberately importable without mitmproxy so it can
-    # be unit-tested and reused. Only `response()` needs the real dependency.
+    # Annotations are strings (PEP 563), so `http.HTTPFlow` in signatures is
+    # never evaluated; the module stays importable without mitmproxy installed.
     http = None  # type: ignore[assignment]
-
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-try:
-    import harness_meter_config as config
-except ImportError:  # pragma: no cover
-    config = None  # type: ignore[assignment]
 
 # Set MEASURE_AUTOCONFIG=0 to manage client configuration yourself.
 AUTOCONFIG = os.environ.get("MEASURE_AUTOCONFIG", "1") != "0"
@@ -66,14 +59,8 @@ OUTDIR = pathlib.Path(os.environ.get("MEASURE_DIR", "./measurements"))
 OUTDIR.mkdir(parents=True, exist_ok=True)
 OUTFILE = OUTDIR / f"{RUN}.jsonl"
 
-# Aucun contenu de prompt persisté par défaut. MEASURE_KEEP_BODIES=1 pour debug.
+# No prompt content persisted by default. MEASURE_KEEP_BODIES=1 for debug.
 KEEP_BODIES = os.environ.get("MEASURE_KEEP_BODIES") == "1"
-
-# Multiplicateurs de facturation Anthropic. Permettent de réduire un usage
-# ventilé (frais / write / read) à un scalaire unique comparable entre clients
-# dont les politiques de cache diffèrent.
-CACHE_WRITE_MULT = 1.25
-CACHE_READ_MULT = 0.10
 
 
 def client_of(flow: http.HTTPFlow) -> str | None:
@@ -84,123 +71,12 @@ def client_of(flow: http.HTTPFlow) -> str | None:
     return PORT_MAP.get(port)
 
 
-def kind_of(host: str, path: str) -> str:
-    """Sépare le trafic agentique du bruit de complétion inline.
-
-    Critique : VS Code émet des complétions inline en continu, déclenchées par
-    la frappe et sans rapport avec la tâche. Les agréger au total agentique
-    rend le comparatif faux.
-    """
-    if "chat/completions" in path or "/v1/messages" in path:
-        return "agentic"
-    if "completions" in path or "/copilot_internal/" in path:
-        return "inline"
-    return "other"
-
-
-def prompt_bytes(body: dict[str, Any]) -> int:
-    total = 0
-
-    def walk(node: Any) -> None:
-        nonlocal total
-        if isinstance(node, str):
-            total += len(node.encode("utf-8"))
-        elif isinstance(node, list):
-            for item in node:
-                walk(item)
-        elif isinstance(node, dict):
-            for key, value in node.items():
-                if key in ("model", "stream", "temperature", "max_tokens"):
-                    continue
-                walk(value)
-
-    for field in ("system", "messages", "tools", "tool_choice"):
-        if field in body:
-            walk(body[field])
-    return total
-
-
-def extract_usage(payload: dict[str, Any]) -> dict[str, int]:
-    """Normalise les schémas Anthropic et OpenAI vers un vocabulaire unique."""
-    usage = payload.get("usage")
-    if not isinstance(usage, dict):
-        return {}
-
-    out: dict[str, int] = {}
-    if "input_tokens" in usage or "output_tokens" in usage:
-        out["input"] = usage.get("input_tokens", 0)
-        out["output"] = usage.get("output_tokens", 0)
-        out["cache_write"] = usage.get("cache_creation_input_tokens", 0)
-        out["cache_read"] = usage.get("cache_read_input_tokens", 0)
-    elif "prompt_tokens" in usage or "completion_tokens" in usage:
-        details = usage.get("prompt_tokens_details") or {}
-        cached = details.get("cached_tokens", 0)
-        # OpenAI inclut le cache dans prompt_tokens ; Anthropic l'exclut
-        # d'input_tokens. On soustrait pour aligner les deux définitions.
-        out["input"] = max(usage.get("prompt_tokens", 0) - cached, 0)
-        out["output"] = usage.get("completion_tokens", 0)
-        out["cache_write"] = 0
-        out["cache_read"] = cached
-    return out
-
-
-def merge(acc: dict[str, int], new: dict[str, int]) -> None:
-    """Les frames SSE republient des cumuls, pas des deltas : max, pas somme."""
-    for key, value in new.items():
-        if value:
-            acc[key] = max(acc.get(key, 0), value)
-
-
-def parse_stream(text: str) -> dict[str, int]:
-    acc: dict[str, int] = {}
-    for line in text.splitlines():
-        line = line.strip()
-        if not line.startswith("data:"):
-            continue
-        chunk = line[5:].strip()
-        if not chunk or chunk == "[DONE]":
-            continue
-        try:
-            payload = json.loads(chunk)
-        except json.JSONDecodeError:
-            continue
-        merge(acc, extract_usage(payload))
-        if isinstance(payload.get("message"), dict):
-            merge(acc, extract_usage(payload["message"]))
-    return acc
-
-
-def billable_input(usage: dict[str, int]) -> float:
-    """Scalaire unique, neutralise les politiques de cache divergentes."""
-    return (
-        usage.get("input", 0)
-        + usage.get("cache_write", 0) * CACHE_WRITE_MULT
-        + usage.get("cache_read", 0) * CACHE_READ_MULT
-    )
-
-
-def _system_bytes(body: dict[str, Any]) -> int:
-    """Taille du prompt système : mesure directe du scaffolding du harness.
-
-    Claude Code utilise un champ `system` dédié ; Copilot place le système
-    dans messages[0]. On couvre les deux.
-    """
-    system = body.get("system")
-    if system:
-        return prompt_bytes({"system": system})
-    messages = body.get("messages") or []
-    first = messages[0] if messages else None
-    if isinstance(first, dict) and first.get("role") == "system":
-        return len(str(first.get("content", "")).encode("utf-8"))
-    return 0
-
-
 def response(flow: http.HTTPFlow) -> None:
     client = client_of(flow)
     if client is None:
         return
 
-    kind = kind_of(flow.request.pretty_host, flow.request.path)
+    kind = parsing.kind_of(flow.request.pretty_host, flow.request.path)
     if kind == "other":
         return
 
@@ -211,10 +87,10 @@ def response(flow: http.HTTPFlow) -> None:
 
     raw = flow.response.get_text(strict=False) or ""
     if raw.lstrip().startswith("data:"):
-        usage = parse_stream(raw)
+        usage = parsing.parse_stream(raw)
     else:
         try:
-            usage = extract_usage(json.loads(raw))
+            usage = parsing.extract_usage(json.loads(raw))
         except json.JSONDecodeError:
             usage = {}
 
@@ -224,20 +100,20 @@ def response(flow: http.HTTPFlow) -> None:
         "task": TASK,
         "client": client,
         "kind": kind,
-        # Alias annoncé par le client. Chez Copilot c'est un alias de routage,
-        # pas un snapshot vérifiable : à traiter comme déclaratif.
+        # Alias announced by the client. On the Copilot side this is a routing
+        # alias, not a verifiable snapshot: treat it as declarative.
         "model_declared": req_body.get("model"),
         "status": flow.response.status_code,
         "latency_ms": int(
             (flow.response.timestamp_end - flow.request.timestamp_start) * 1000
         ),
         "tokens": usage,
-        "billable_input": round(billable_input(usage), 1),
-        "prompt_bytes": prompt_bytes(req_body),
+        "billable_input": round(parsing.billable_input(usage), 1),
+        "prompt_bytes": parsing.prompt_bytes(req_body),
         "response_bytes": len(raw.encode("utf-8")),
         "n_messages": len(req_body.get("messages") or []),
         "n_tools": len(req_body.get("tools") or []),
-        "system_bytes": _system_bytes(req_body),
+        "system_bytes": parsing._system_bytes(req_body),
     }
 
     if KEEP_BODIES:
@@ -259,7 +135,7 @@ def running() -> None:
     disk - mitmproxy generates it during startup - so no bootstrap step is
     needed on a first run.
     """
-    if not AUTOCONFIG or config is None:
+    if not AUTOCONFIG:
         return
     if config.is_active():
         print(
@@ -278,6 +154,6 @@ def done() -> None:
     Not called on SIGKILL or a power loss, which is exactly why every change
     is journalled to a state file and scripts/proxy_stop.py exists.
     """
-    if not AUTOCONFIG or config is None:
+    if not AUTOCONFIG:
         return
     config.revert()

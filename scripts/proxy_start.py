@@ -13,11 +13,8 @@ from __future__ import annotations
 
 import argparse
 import pathlib
-import sys
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
-
-import harness_meter_config as config  # noqa: E402
+from harness_meter import config
 
 
 def main() -> int:

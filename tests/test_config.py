@@ -8,14 +8,10 @@ leaves the operator's editor broken after the experiment ends.
 from __future__ import annotations
 
 import json
-import pathlib
-import sys
 
 import pytest
 
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
-
-import harness_meter_config as config  # noqa: E402
+from harness_meter import config
 
 # --------------------------------------------------------------------------
 # JSONC

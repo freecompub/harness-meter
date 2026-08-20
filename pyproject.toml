@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "harness-meter"
 version = "0.1.0"
@@ -13,6 +17,12 @@ dev = ["pytest>=8.0"]
 [project.urls]
 Homepage = "https://github.com/freecompub/harness-meter"
 
+[project.scripts]
+harness-meter-analyze = "harness_meter.analyze:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
@@ -21,9 +31,3 @@ line-length = 88
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM"]
-
-[tool.ruff.lint.per-file-ignores]
-# sys.path manipulation must precede local imports in standalone entry points.
-"tests/*" = ["E402"]
-"scripts/*" = ["E402"]
-"token_meter.py" = ["E402"]
