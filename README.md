@@ -53,9 +53,13 @@ pip install -e ".[dev]"
 pytest
 ```
 
-Requires Python 3.12+ and mitmproxy 10+.
+Requires Python 3.12+ and mitmproxy 10+. Windows, macOS and Linux are
+supported by the same code path; there are no shell scripts to keep in sync.
 
 ## Run
+
+Client configuration is applied automatically when mitmdump starts and
+reverted when it stops:
 
 ```bash
 MEASURE_RUN=r01 MEASURE_TASK=T04 mitmdump -s token_meter.py \
@@ -65,17 +69,52 @@ MEASURE_RUN=r01 MEASURE_TASK=T04 mitmdump -s token_meter.py \
   --set stream_large_bodies=10m
 ```
 
-| Port | Client | Configuration |
+| Port | Client | How it is configured |
 | --- | --- | --- |
-| 8081 | VS Code | `"http.proxy": "http://127.0.0.1:8081"`, `"http.proxyStrictSSL": false`, then restart VS Code fully |
-| 8082 | Copilot CLI | `HTTPS_PROXY=http://127.0.0.1:8082` |
-| 8083 | Claude Code | `HTTPS_PROXY=http://127.0.0.1:8083` |
+| 8081 | VS Code | `settings.json` patched in place (backed up first) |
+| 8082 | Copilot CLI | env snippet in `.harness-meter/env/` |
+| 8083 | Claude Code | env snippet in `.harness-meter/env/` |
 
-Node-based clients also need the CA, generated on first launch:
+A child process cannot mutate its parent's environment, so the two CLI clients
+get snippet files to source in their own shell:
 
 ```bash
-export NODE_EXTRA_CA_CERTS=$HOME/.mitmproxy/mitmproxy-ca-cert.pem
+source .harness-meter/env/copilot_cli.sh     # or . .\copilot_cli.ps1 on Windows
+source .harness-meter/env/claude_code.sh
 ```
+
+VS Code needs no snippet — exporting a proxy in its shell too would route
+extension traffic through the same port and pollute the agentic totals. It does
+need a **full restart**; a window reload does not re-read proxy settings.
+
+### Manual control
+
+Automatic setup covers the normal path. The scripts exist for the two cases it
+does not: configuring before launching mitmdump, and repairing state after a
+hard kill.
+
+```bash
+python scripts/proxy_start.py      # configure
+python scripts/proxy_stop.py       # restore
+```
+
+`MEASURE_AUTOCONFIG=0` disables the automatic hooks entirely.
+
+### What gets touched, and what does not
+
+Only the three target clients are configured. Deliberately untouched:
+
+- **The system proxy** (WinINET registry, `networksetup`, `gsettings`). It would
+  capture unrelated traffic and destroy the port-based attribution the whole
+  measurement depends on.
+- **The system certificate store.** `NODE_EXTRA_CA_CERTS` covers the Node
+  clients and `proxyStrictSSL: false` covers VS Code, so no CA is installed and
+  none can be left behind.
+
+Teardown restores `settings.json` from a byte-exact copy taken at setup, not by
+re-serializing — comments and formatting survive intact. Every change is
+journalled to `.harness-meter/state.json`, so `proxy_stop.py` can finish the job
+after a SIGKILL, when the shutdown hook never ran.
 
 ## Analyze
 
@@ -98,6 +137,10 @@ per attempt rewards a harness that gives up early, so failures are excluded by
 default (`--include-failures` to override).
 
 ## Before you trust a result
+
+**Restart VS Code after setup, and again after teardown.** Proxy settings are
+read at process start. A window reload leaves it talking to a port that is no
+longer listening, which looks like a broken editor rather than a config issue.
 
 **Check your Copilot license first.** Business and Enterprise plans may reject
 proxied connections with self-signed certificates. Test with a bare mitmproxy

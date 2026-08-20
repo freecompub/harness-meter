@@ -32,6 +32,7 @@ from __future__ import annotations
 import json
 import os
 import pathlib
+import sys
 import time
 from typing import Any
 
@@ -42,11 +43,22 @@ except ImportError:  # pragma: no cover
     # be unit-tested and reused. Only `response()` needs the real dependency.
     http = None  # type: ignore[assignment]
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+try:
+    import harness_meter_config as config
+except ImportError:  # pragma: no cover
+    config = None  # type: ignore[assignment]
+
+# Set MEASURE_AUTOCONFIG=0 to manage client configuration yourself.
+AUTOCONFIG = os.environ.get("MEASURE_AUTOCONFIG", "1") != "0"
+
 PORT_MAP = {
     8081: "copilot_vscode",
     8082: "copilot_cli",
     8083: "claude_code",
 }
+
+PORT_MAP_BY_CLIENT = {client: port for port, client in PORT_MAP.items()}
 
 RUN = os.environ.get("MEASURE_RUN", time.strftime("%Y%m%d-%H%M%S"))
 TASK = os.environ.get("MEASURE_TASK", "unspecified")
@@ -233,3 +245,39 @@ def response(flow: http.HTTPFlow) -> None:
 
     with OUTFILE.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+
+# --------------------------------------------------------------------------
+# Lifecycle: configure clients on startup, restore them on shutdown
+# --------------------------------------------------------------------------
+
+
+def running() -> None:
+    """mitmproxy calls this once the proxy servers are accepting connections.
+
+    Configuring here rather than earlier guarantees the CA already exists on
+    disk - mitmproxy generates it during startup - so no bootstrap step is
+    needed on a first run.
+    """
+    if not AUTOCONFIG or config is None:
+        return
+    if config.is_active():
+        print(
+            "harness-meter: existing state file found, leaving it alone.\n"
+            "  A previous session did not tear down. Run scripts/proxy_stop.py\n"
+            "  before measuring: the current settings.json is already proxied,\n"
+            "  and backing it up again would make the original unrecoverable."
+        )
+        return
+    config.apply(ports=PORT_MAP_BY_CLIENT)
+
+
+def done() -> None:
+    """Called on graceful shutdown, including Ctrl-C.
+
+    Not called on SIGKILL or a power loss, which is exactly why every change
+    is journalled to a state file and scripts/proxy_stop.py exists.
+    """
+    if not AUTOCONFIG or config is None:
+        return
+    config.revert()
