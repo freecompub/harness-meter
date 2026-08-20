@@ -144,6 +144,61 @@ Inline completions (VS Code keystroke-triggered) are isolated from agentic
 traffic and reported separately with `--kind inline`. Merging them would charge
 VS Code for a workload the CLI harnesses never run.
 
+## Comparing two configurations of one harness
+
+The measurement does not care whether the two sides are different harnesses or
+one harness in two configurations. Hold the client fixed, toggle a single
+feature — a skill, an MCP server, a plugin, an instruction file — and the same
+pipeline reports the marginal token cost of that feature.
+
+The one rule: change **exactly one thing** between the two arms, and label them
+so `analyze.py` keeps them apart. Since it groups by `(task, client)`, encode
+the configuration in the task id.
+
+Baseline — feature off:
+
+```bash
+MEASURE_RUN=r01 MEASURE_TASK=T04-mcp-off mitmdump -s token_meter.py \
+  --mode regular@8081 --mode regular@8082 --mode regular@8083 \
+  --set stream_large_bodies=10m
+# drive Claude Code through T04, then Ctrl-C
+```
+
+Then enable the MCP server (or skill, or plugin) and repeat, changing only the
+label:
+
+```bash
+MEASURE_RUN=r01 MEASURE_TASK=T04-mcp-on mitmdump -s token_meter.py \
+  --mode regular@8081 --mode regular@8082 --mode regular@8083 \
+  --set stream_large_bodies=10m
+# drive the same T04, same prompt, then Ctrl-C
+```
+
+Record outcomes for both arms in `results.csv`, then aggregate:
+
+```bash
+python analyze.py --dir measurements --results results.csv
+```
+
+Output shape (**synthetic figures, for illustration**):
+
+```
+task           client               n   succ      median       IQR  turns    sys_B
+----------------------------------------------------------------------------------
+T04-mcp-off    claude_code          5  100%      96,320    18,110      7    9,800
+T04-mcp-on     claude_code          5  100%     121,540    21,300      8   14,600
+```
+
+Read it as: the MCP server added ~25k billable tokens per successful session on
+this task, and ~4.8k of that is fixed `system_bytes` — the tool manifest paid on
+every request, before any task work. If success rate had dropped in the `on`
+arm, the extra cost would be buying nothing, which is exactly what the success
+gate is there to surface.
+
+The same shape compares a `CLAUDE.md` present vs absent, one MCP server vs two,
+or a lean tool set vs a broad one. Keep the change to one variable per pair, or
+the difference is no longer attributable.
+
 ## Before you trust a result
 
 Four traps turn a number into a *wrong* number. They are covered in the README
