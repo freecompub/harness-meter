@@ -1,6 +1,6 @@
 # harness-meter
 
-[![CI](https://github.com/salili/harness-meter/actions/workflows/ci.yml/badge.svg)](https://github.com/salili/harness-meter/actions/workflows/ci.yml)
+[![CI](https://github.com/freecompub/harness-meter/actions/workflows/ci.yml/badge.svg)](https://github.com/freecompub/harness-meter/actions/workflows/ci.yml)
 
 Measure and compare token consumption across AI coding agent harnesses —
 GitHub Copilot in VS Code, Copilot CLI, and Claude Code — on the same model
@@ -11,6 +11,18 @@ own numbers. The point is that **those numbers are not comparable**: they are
 produced by different instrumentation, use different definitions of "prompt
 tokens", and mix task work with background traffic. harness-meter puts a single
 parser in front of all three so the comparison has one unit.
+
+## Documentation
+
+| Guide | What it covers |
+| --- | --- |
+| [docs/INSTALL.md](docs/INSTALL.md) | Requirements, package install, generating the mitmproxy CA |
+| [docs/CONFIGURATION.md](docs/CONFIGURATION.md) | Ports, every environment variable, per-client setup, the state file, troubleshooting |
+| [docs/USAGE.md](docs/USAGE.md) | A measurement run end to end: start, drive, stop, analyze |
+| [docs/PROTOCOL.md](docs/PROTOCOL.md) | The experimental method — hypothesis, design, success criteria |
+| [docs/TASKS.md](docs/TASKS.md) | How to build a discriminating task corpus |
+
+The rest of this README is a quickstart; the guides above are the reference.
 
 ## What it measures
 
