@@ -10,7 +10,9 @@ The point is not to count tokens. Every one of these tools already reports its
 own numbers. The point is that **those numbers are not comparable**: they are
 produced by different instrumentation, use different definitions of "prompt
 tokens", and mix task work with background traffic. harness-meter puts a single
-parser in front of all three so the comparison has one unit.
+parser in front of all three so the comparison has one unit. That one unit is
+what makes any controlled comparison possible — between harnesses, or between
+two configurations of the same one.
 
 ## Documentation
 
@@ -41,6 +43,30 @@ For every request it records:
 | `system_bytes` | Size of the harness's own scaffolding |
 | `kind` | `agentic` vs `inline` — never merged |
 | `n_turns`, `latency_ms` | Loop depth and wall cost |
+
+## The harness is one variable
+
+Because the comparison is anchored to *one task, one model, one parser*,
+anything else you hold constant becomes a controlled variable. Swap the harness
+and you are comparing harnesses. Hold the harness fixed and change its
+configuration instead, and the same numbers answer a different question:
+
+- Does enabling a **skill** or an **MCP server** raise the per-task token cost,
+  and by how much? `system_bytes` and `prompt_bytes` separate the added
+  scaffolding from the task work, so the overhead is visible rather than
+  folded into the total.
+- What does a **plugin**, a set of **instruction files** (`CLAUDE.md`,
+  `.github/copilot-instructions.md`), or a larger tool manifest add to *every*
+  request? `n_tools` and `system_bytes` expose the fixed cost that is paid
+  before the first turn.
+- Is a leaner configuration actually cheaper *at equal success rate*, or does it
+  simply fail more often? The success gate in [PROTOCOL.md](PROTOCOL.md) keeps
+  that answer honest.
+
+Run the same task twice — once with the feature on, once off — and the
+difference in `billable_input` is its marginal cost. Nothing in the method
+requires the two sides to be different tools; they can be one harness in two
+configurations.
 
 ## Three corrections it applies
 
