@@ -33,7 +33,7 @@ def kind_of(host: str, path: str) -> str:
     keystrokes and unrelated to the task. Folding them into the agentic total
     makes the comparison wrong.
     """
-    if "chat/completions" in path or "/v1/messages" in path:
+    if "chat/completions" in path or "/v1/messages" in path or "/mcp/readonly" in path:
         return "agentic"
     if "completions" in path or "/copilot_internal/" in path:
         return "inline"
