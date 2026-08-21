@@ -33,6 +33,11 @@ attributed by listen port, not by destination host — VS Code and Copilot CLI
 both talk to `githubcopilot.com`, so host-based classification cannot separate
 them.
 
+Both transports are measured. Most traffic is HTTP, but Copilot CLI streams its
+agentic turns over a **WebSocket** (the `/responses` endpoint) — tens of
+thousands of tokens per turn that the HTTP path never sees. The WebSocket usage
+runs through the same parser as everything else, so it stays comparable.
+
 For every request it records:
 
 | Field | Why it exists |
@@ -76,11 +81,14 @@ These are the differences between a number and a *comparable* number.
 republish running totals. Adding them up inflates the count. The addon takes
 the maximum per key within a request, and sums only across distinct requests.
 
-**The two `usage` schemas are reconciled.** OpenAI includes cached tokens
-inside `prompt_tokens`; Anthropic excludes them from `input_tokens`. Compared
-raw, the same workload looks larger on one side. The parser subtracts cached
-tokens so both describe the same quantity. `tests/test_parsing.py` asserts this
-against a matched pair of fixtures.
+**The three `usage` schemas are reconciled.** OpenAI Chat folds cached tokens
+into `prompt_tokens`; the OpenAI Responses API (Copilot CLI's WebSocket stream)
+folds them into `input_tokens`; Anthropic excludes them. Compared raw, the same
+workload looks larger on the cache-inclusive sides — for one real Copilot CLI
+turn, a raw reading gave a `billable_input` of 32,815 where the reconciled
+figure is 6,703. The parser subtracts the cached tokens so `input` is always
+cache-exclusive. `tests/test_parsing.py` asserts this against fixtures, using
+the real capture's numbers.
 
 **Inline completions are isolated.** VS Code emits keystroke-triggered
 completions unrelated to the task. Copilot CLI and Claude Code do not. Merging

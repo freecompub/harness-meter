@@ -78,6 +78,49 @@ def test_inline_traffic_is_classified_apart():
     )
 
 
+def test_responses_endpoint_is_agentic():
+    """Copilot CLI streams its agentic turns over the WebSocket /responses path."""
+    assert tm.kind_of("api.individual.githubcopilot.com", "/responses") == "agentic"
+
+
+def test_responses_api_input_is_made_cache_exclusive():
+    """The Responses API (Copilot CLI over WebSocket) folds cached tokens into
+    input_tokens. Parsed, `input` must exclude them — cross-checked against the
+    real capture: 30204 input_tokens with 26112 cached is 4092 fresh input.
+    """
+    payload = {
+        "usage": {
+            "input_tokens": 30204,
+            "output_tokens": 1043,
+            "input_tokens_details": {"cached_tokens": 26112},
+        }
+    }
+    usage = tm.extract_usage(payload)
+    assert usage["input"] == 4092
+    assert usage["cache_read"] == 26112
+    assert usage["output"] == 1043
+    # Correct billable — not the 32815 the naive raw-input reading produced.
+    assert tm.billable_input(usage) == 4092 + 26112 * 0.10
+
+
+def test_anthropic_usage_without_details_stays_cache_exclusive():
+    """No input_tokens_details means Anthropic, whose input_tokens already
+    excludes the cache — it must pass through untouched.
+    """
+    payload = {
+        "usage": {
+            "input_tokens": 1200,
+            "output_tokens": 5,
+            "cache_creation_input_tokens": 400,
+            "cache_read_input_tokens": 8000,
+        }
+    }
+    usage = tm.extract_usage(payload)
+    assert usage["input"] == 1200
+    assert usage["cache_write"] == 400
+    assert usage["cache_read"] == 8000
+
+
 def test_prompt_bytes_ignores_sampling_parameters():
     """Only context counts. Sampling knobs must not inflate the byte metric."""
     body = {

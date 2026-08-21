@@ -8,10 +8,11 @@ Two corrections live here, and they are the whole point of the tool:
 
 - Cumulative SSE frames are collapsed with `max`, not summed — streaming
   responses republish running totals, so adding them inflates the count.
-- The OpenAI and Anthropic `usage` schemas are reconciled to one vocabulary.
-  OpenAI folds cached tokens into `prompt_tokens`; Anthropic excludes them from
-  `input_tokens`. `extract_usage` subtracts the cached tokens so both describe
-  the same quantity.
+- Three `usage` schemas are reconciled to one vocabulary. OpenAI Chat folds
+  cached tokens into `prompt_tokens`; the OpenAI Responses API (which Copilot
+  CLI uses over WebSocket) folds them into `input_tokens`; Anthropic excludes
+  them from `input_tokens`. `extract_usage` normalizes all three so `input` is
+  always cache-exclusive and the numbers are comparable.
 """
 
 from __future__ import annotations
@@ -33,7 +34,7 @@ def kind_of(host: str, path: str) -> str:
     keystrokes and unrelated to the task. Folding them into the agentic total
     makes the comparison wrong.
     """
-    if "chat/completions" in path or "/v1/messages" in path:
+    if "chat/completions" in path or "/v1/messages" in path or "/responses" in path:
         return "agentic"
     if "completions" in path or "/copilot_internal/" in path:
         return "inline"
@@ -63,17 +64,33 @@ def prompt_bytes(body: dict[str, Any]) -> int:
 
 
 def extract_usage(payload: dict[str, Any]) -> dict[str, int]:
-    """Normalize the Anthropic and OpenAI schemas to one vocabulary."""
+    """Normalize the three usage schemas (Anthropic, OpenAI Chat, OpenAI
+    Responses) to one vocabulary in which `input` is always cache-exclusive.
+    """
     usage = payload.get("usage")
     if not isinstance(usage, dict):
         return {}
 
     out: dict[str, int] = {}
     if "input_tokens" in usage or "output_tokens" in usage:
-        out["input"] = usage.get("input_tokens", 0)
-        out["output"] = usage.get("output_tokens", 0)
-        out["cache_write"] = usage.get("cache_creation_input_tokens", 0)
-        out["cache_read"] = usage.get("cache_read_input_tokens", 0)
+        details = usage.get("input_tokens_details")
+        if isinstance(details, dict):
+            # OpenAI Responses API (Copilot CLI uses it over WebSocket):
+            # input_tokens INCLUDES cached tokens. Subtract them so `input`
+            # is cache-exclusive, matching the other two schemas. Verified
+            # against Copilot's own `copilot_usage.token_details`, which
+            # reports the same fresh-input figure this subtraction yields.
+            cached = details.get("cached_tokens", 0)
+            out["input"] = max(usage.get("input_tokens", 0) - cached, 0)
+            out["output"] = usage.get("output_tokens", 0)
+            out["cache_write"] = details.get("cache_write_tokens", 0)
+            out["cache_read"] = cached
+        else:
+            # Anthropic: input_tokens EXCLUDES cached tokens already.
+            out["input"] = usage.get("input_tokens", 0)
+            out["output"] = usage.get("output_tokens", 0)
+            out["cache_write"] = usage.get("cache_creation_input_tokens", 0)
+            out["cache_read"] = usage.get("cache_read_input_tokens", 0)
     elif "prompt_tokens" in usage or "completion_tokens" in usage:
         details = usage.get("prompt_tokens_details") or {}
         cached = details.get("cached_tokens", 0)

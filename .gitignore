@@ -10,3 +10,6 @@ dist/
 .harness-meter/
 .claude/
 build/
+# mitmproxy flow captures — may contain cleartext request/response bodies
+*.dump
+*.flows
