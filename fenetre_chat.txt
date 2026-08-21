@@ -1,0 +1,89 @@
+No copilot-instructions.md found. Run /init to generate.
+
+Detected Azure DevOps repository. The built-in github-mcp-server is restricted to web_search; other GitHub tools are unavailable.
+
+Tip: /mcp
+└ Manage MCP server configuration
+
+Error auto updating: GitHub API rate limit exceeded. If you are not authenticated, sign in (run 'gh auth login' or 'copilot login') or set COPILOT_GITHUB_TOKEN, GH_TOKEN, or GITHUB_TOKEN for a higher rate limit. Otherwise, try again later. Rate limit resets at 2026-08-21T14:42:48.000Z.
+
+analyse le projet
+
+Je fais un survol de la structure et des points d’entrée pour en sortir une analyse utile.
+
+Search "**/*" 41 files found
+
+Read package.json Path does not exist
+Read README.md 20 lines read
+
+Search "**/src/**/*" No matches found
+
+Je lis maintenant les fichiers Swift clés pour comprendre l’architecture, les dépendances et les comportements testés.
+
+Read Package.swift 35 lines read
+Read ContexteManager.swift 60 lines read
+Read ContexteManagerInput.swift 20 lines read
+Read Environement.swift 27 lines read
+Read Injection.swift 73 lines read
+Read delete.swift 2 lines read
+Read ContexteManagerTests.swift 134 lines read
+Read ContexteManagerAPIHelperMock.swift 48 lines read
+Read JsonHelperMock.swift 44 lines read
+Read Injection.swift 27 lines read
+
+Je complète avec l’exemple iOS pour voir comment la librairie est consommée côté UI.
+
+Read ContexteManagerHelperApp.swift 207 lines read
+Read ContentViewKiosk.swift 1 line read
+Read ContentViewNoe.swift 1 line read
+Read OneAccountProvider.swift 185 lines read
+Read Environement+UI.swift 21 lines read
+
+Search "ContexteManager" (Example/ContexteManagerHelper) 34 lines found
+Search "getContextId|getData|ContexteManager\." (Sources) 7 lines found
+Search "@Test" (Tests/ContexteManagerApiHelperTests) 7 lines found
+
+Je lis les deux vues d’exemple pour résumer le flux métier réel côté utilisateur.
+
+Read ContentViewNoe.swift L1:260 (260 lines read)
+Read ContentViewKiosk.swift L1:260 (259 lines read)
+
+C’est une petite librairie Swift Package iOS qui encapsule l’accès au service ContextManager d’AXA, avec un projet exemple SwiftUI pour le consommer.
+
+Structure
+
+•  Sources/ContexteManagerApiHelper  : cœur métier.
+•  Tests/ContexteManagerApiHelperTests  : tests unitaires avec mocks.
+•  Example/  : app iOS de démo, avec deux écrans métier ( NOE  et  Kiosk ).
+
+Ce que fait la librairie
+
+•  ContexteManager.getContextId(...)  envoie un  POST  avec un  ContexteManagerInput<T: Codable> .
+•  ContexteManager.getData(...)  envoie un  GET  avec  saCible  et  contexteId .
+•  Environement  porte les 3 environnements ( recette ,  preProd ,  prod ) et leurs URLs hardcodées.
+•  Injection  permet d’injecter  Logger ,  JsonEncoder  et  APIHelper  pour tester proprement.
+
+Architecture
+
+• Le code est simple et très focalisé : une façade publique ( ContexteManager ) + des dépendances injectables.
+• Les mocks de test reproduisent  JsonEncoder ,  MaamProvider  et l’API HTTP.
+• L’app exemple gère l’auth MAAM puis construit les entrées métiers avant d’appeler la librairie.
+
+Points forts
+
+• API publique très petite et claire.
+• Tests couvrant les erreurs d’encodage, d’appel API, les statuts non-200 et les succès.
+• Bonne séparation entre logique réseau et UI.
+
+Points faibles / risques
+
+• Nommage incohérent :  Environement  (typo) partout.
+• URLs et identifiants MAAM codés en dur dans l’exemple.
+• Gestion d’erreur assez brute : messages concaténés en chaînes, peu typés.
+•  getContextId  supprime les guillemets de la réponse au lieu de parser un vrai JSON.
+• Le README est encore un template, donc le projet est peu documenté.
+
+Lecture globale
+
+• C’est un wrapper métier léger autour d’un SDK interne ( AF.Utilities  /  APIHelper ), destiné à standardiser l’appel ContextManager depuis des apps iOS.
+• Le projet est fonctionnel et bien testable, mais il gagnerait en robustesse avec une meilleure modélisation des erreurs, une doc minimale, et un nettoyage du nommage.
