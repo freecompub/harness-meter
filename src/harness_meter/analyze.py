@@ -108,6 +108,13 @@ def summarize(
         billable = [b["billable_input"] for b in buckets]
         output = [b["output"] for b in buckets]
         total = [b["billable_input"] + b["output"] for b in buckets]
+        # Raw token volume, before the cache-weighted billable collapse. Kept
+        # separate so a harness that leans on the cache (cheap billable, heavy
+        # raw traffic) is visible rather than hidden.
+        raw_tokens = [
+            b["input"] + b["output"] + b["cache_write"] + b["cache_read"]
+            for b in buckets
+        ]
         summary[group_key] = {
             "n": len(buckets),
             "attempts": attempts[group_key],
@@ -116,6 +123,11 @@ def summarize(
             "iqr_total": iqr(total),
             "median_billable_input": statistics.median(billable),
             "median_output": statistics.median(output),
+            "median_tokens": statistics.median(raw_tokens),
+            "median_cache_read": statistics.median([b["cache_read"] for b in buckets]),
+            "median_cache_write": statistics.median(
+                [b["cache_write"] for b in buckets]
+            ),
             "median_turns": statistics.median([b["turns"] for b in buckets]),
             "system_bytes": max(b["system_bytes"] for b in buckets),
         }
@@ -128,7 +140,8 @@ def render(summary: dict[tuple[str, str], dict[str, Any]]) -> str:
 
     header = (
         f"{'task':<8}{'client':<18}{'n':>4}{'succ':>7}"
-        f"{'median':>12}{'IQR':>10}{'turns':>7}{'sys_B':>9}"
+        f"{'billable':>12}{'IQR':>10}{'tokens':>11}{'cache_r':>10}{'cache_w':>9}"
+        f"{'turns':>7}{'sys_B':>9}"
     )
     lines = [header, "-" * len(header)]
     for (task, client), stats in sorted(summary.items()):
@@ -137,14 +150,21 @@ def render(summary: dict[tuple[str, str], dict[str, Any]]) -> str:
             f"{stats['success_rate']:>6.0%} "
             f"{stats['median_total']:>11,.0f}"
             f"{stats['iqr_total']:>10,.0f}"
+            f"{stats['median_tokens']:>11,.0f}"
+            f"{stats['median_cache_read']:>10,.0f}"
+            f"{stats['median_cache_write']:>9,.0f}"
             f"{stats['median_turns']:>7.0f}"
             f"{stats['system_bytes']:>9,.0f}"
         )
 
     lines.append("")
     lines.append(
-        "median/IQR are total billable tokens (billable_input + output) "
-        "per successful session."
+        "billable/IQR are cache-weighted billable tokens (billable_input + "
+        "output) per successful session."
+    )
+    lines.append(
+        "tokens is the raw total (input + output + cache); cache_r / cache_w are "
+        "cached tokens read / written."
     )
     lines.append(
         "An IQR near or above the median means the sample is too small to "

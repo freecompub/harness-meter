@@ -119,17 +119,24 @@ python analyze.py --dir measurements --results results.csv
 Output:
 
 ```
-task    client               n   succ      median       IQR  turns    sys_B
----------------------------------------------------------------------------
-T04     claude_code          4   80%      97,141    22,944      7   11,000
-T04     copilot_cli          4   80%     100,628    20,702      8    7,400
-T04     copilot_vscode       5  100%     145,721    67,863      8   15,200
+task    client               n   succ    billable       IQR     tokens   cache_r  cache_w  turns    sys_B
+---------------------------------------------------------------------------------------------------------
+T04     claude_code          4   80%      97,141    22,944    412,300   298,400   12,100      7   11,000
+T04     copilot_cli          4   80%     100,628    20,702    118,900    14,200        0      8    7,400
+T04     copilot_vscode       5  100%     145,721    67,863    160,050    18,700        0      8   15,200
 ```
 
-The reported `median`/`IQR` are **total billable tokens**
-(`billable_input + output`) per successful session. When the IQR approaches or
-exceeds the median — as on the third row above — the sample is too small to
-rank anything, which is the normal state of affairs at n=5.
+Columns:
+
+- `billable` / `IQR` — **cache-weighted billable tokens** (`billable_input +
+  output`) per successful session, the headline figure. When the IQR approaches
+  or exceeds the billable median — as on the third row — the sample is too small
+  to rank anything, the normal state at n=5.
+- `tokens` — the **raw token volume** (`input + output + cache`), before the
+  cache weighting.
+- `cache_r` / `cache_w` — **cached tokens** read and written. A cheap `billable`
+  next to a large `tokens` means the harness is leaning on the cache: the first
+  row bills 97,141 but moved 412,300 tokens, 298,400 of them cache reads.
 
 ### analyze.py options
 
@@ -183,17 +190,19 @@ python analyze.py --dir measurements --results results.csv
 Output shape (**synthetic figures, for illustration**):
 
 ```
-task           client               n   succ      median       IQR  turns    sys_B
-----------------------------------------------------------------------------------
-T04-mcp-off    claude_code          5  100%      96,320    18,110      7    9,800
-T04-mcp-on     claude_code          5  100%     121,540    21,300      8   14,600
+task           client               n   succ    billable       IQR     tokens   cache_r  cache_w  turns    sys_B
+---------------------------------------------------------------------------------------------------------------
+T04-mcp-off    claude_code          5  100%      96,320    18,110    301,400   204,900    8,600      7    9,800
+T04-mcp-on     claude_code          5  100%     121,540    21,300    366,200   248,700   11,400      8   14,600
 ```
 
 Read it as: the MCP server added ~25k billable tokens per successful session on
 this task, and ~4.8k of that is fixed `system_bytes` — the tool manifest paid on
-every request, before any task work. If success rate had dropped in the `on`
-arm, the extra cost would be buying nothing, which is exactly what the success
-gate is there to surface.
+every request, before any task work. The `tokens` and `cache_r` columns show
+where the rest goes: ~65k more raw tokens, most of it extra cache reads from the
+larger context. If success rate had dropped in the `on` arm, the extra cost
+would be buying nothing, which is exactly what the success gate is there to
+surface.
 
 The same shape compares a `CLAUDE.md` present vs absent, one MCP server vs two,
 or a lean tool set vs a broad one. Keep the change to one variable per pair, or

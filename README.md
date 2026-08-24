@@ -200,20 +200,25 @@ python analyze.py --dir measurements --results results.csv
 Output shape (**synthetic figures — this project ships no measurements**):
 
 ```
-task    client               n   succ      median       IQR  turns    sys_B
----------------------------------------------------------------------------
-T04     claude_code          4   80%      97,141    22,944      7   11,000
-T04     copilot_cli          4   80%     100,628    20,702      8    7,400
-T04     copilot_vscode       5  100%     145,721    67,863      8   15,200
+task    client               n   succ    billable       IQR     tokens   cache_r  cache_w  turns    sys_B
+---------------------------------------------------------------------------------------------------------
+T04     claude_code          4   80%      97,141    22,944    412,300   298,400   12,100      7   11,000
+T04     copilot_cli          4   80%     100,628    20,702    118,900    14,200        0      8    7,400
+T04     copilot_vscode       5  100%     145,721    67,863    160,050    18,700        0      8   15,200
 ```
 
-Note the IQR on the third row: roughly half its median. On that sample the
-three harnesses cannot be ranked, and reporting the medians as a result would
-be wrong. This is the normal state of affairs at n=5 — plan for more.
+`billable` is the headline: cache-weighted billable tokens **per successful
+session** (`billable_input + output`). `tokens` is the raw volume, and
+`cache_r` / `cache_w` the cached tokens read / written — so a harness with a
+cheap `billable` but a large `tokens` is leaning heavily on the cache, which the
+first row shows: 298,400 of its 412,300 tokens are cache reads (billed at ×0.10).
 
-The reported figure is total billable tokens **per successful session**. Cost
-per attempt rewards a harness that gives up early, so failures are excluded by
-default (`--include-failures` to override).
+Note the IQR on the third row: roughly half its billable median. On that sample
+the three harnesses cannot be ranked, and reporting the medians as a result
+would be wrong. This is the normal state of affairs at n=5 — plan for more.
+
+Cost per attempt rewards a harness that gives up early, so failures are excluded
+by default (`--include-failures` to override).
 
 ## Before you trust a result
 
