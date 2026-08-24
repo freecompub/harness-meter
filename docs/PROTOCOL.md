@@ -79,6 +79,13 @@ Report `system_bytes` per harness. If it explains most of the observed gap,
 the finding is about scaffolding size, not about harness intelligence, and
 should be stated that way.
 
+Report the raw token volume (`tokens`) and the cache split (`cache_r` /
+`cache_w`) alongside the billable figure, not instead of it. A harness can post
+a low billable cost while moving far more tokens because it reads heavily from
+the prompt cache (billed at ×0.10). That is a real efficiency, but it is a
+different claim from "uses fewer tokens", and conflating the two misleads —
+`analyze.py` prints all three columns so the distinction stays visible.
+
 ## Known limitations
 
 Write these down; they are not weaknesses of the method but boundaries of the
