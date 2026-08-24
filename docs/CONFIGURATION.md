@@ -131,6 +131,14 @@ rather than silent. The snippets are deleted on teardown, but **variables
 already exported into an open shell persist** — close those shells or unset the
 variables by hand after a run.
 
+Copilot CLI streams its agentic turns over a **WebSocket** (the `/responses`
+endpoint), not plain HTTP. The proxy configuration is identical — the same
+`HTTPS_PROXY` snippet routes the WebSocket upgrade — but the addon records those
+turns from the WebSocket frames, tagged `"_source": "websocket"` in the output.
+Their `usage` follows the OpenAI Responses schema (`input_tokens` is
+cache-inclusive) and is reconciled to the same cache-exclusive `input` as the
+HTTP paths, so the totals stay comparable.
+
 ## Measurement environment variables
 
 Set these when launching `mitmdump -s token_meter.py` to label and route the
